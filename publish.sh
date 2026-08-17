@@ -37,10 +37,18 @@ R_SDIST=""
 Y_WHEEL=""
 Y_SDIST=""
 COMPLETED=()
+# The release may change these files, and no others. The set is a limit, not a
+# list of files that must change: a WebAssembly rebuild gives identical bytes
+# when the Rust code did not change.
 MANIFEST_ALLOWLIST=(
     "milkwashr/Cargo.toml"
+    "milkwashr-wasm/Cargo.toml"
     "milkwashy/pyproject.toml"
     "milkwashy/src/milkwashy/__init__.py"
+    "docs/assets/wasm/VERSION"
+    "docs/assets/wasm/milkwashr.js"
+    "docs/assets/wasm/milkwashr.d.ts"
+    "docs/assets/wasm/milkwashr_bg.wasm"
 )
 
 usage() {
@@ -259,16 +267,24 @@ pre_mutation_gates() {
 
 assert_manifest_diff() {
     local actual="$TEMP_DIR/actual-manifests.txt"
-    local expected="$TEMP_DIR/expected-manifests.txt"
-    git -C "$ROOT" diff --name-only -- >"$actual"
-    printf '%s\n' "${MANIFEST_ALLOWLIST[@]}" >"$expected"
+    local allowed="$TEMP_DIR/allowed-manifests.txt"
+    local extra="$TEMP_DIR/extra-manifests.txt"
+    git -C "$ROOT" diff --name-only --untracked-files=no -- >"$actual"
+    printf '%s\n' "${MANIFEST_ALLOWLIST[@]}" >"$allowed"
     LC_ALL=C sort -o "$actual" "$actual"
-    LC_ALL=C sort -o "$expected" "$expected"
-    if ! cmp -s "$actual" "$expected"; then
-        printf 'Release preparation changed files outside the manifest allowlist.\n' >&2
-        diff -u "$expected" "$actual" >&2 || true
+    LC_ALL=C sort -o "$allowed" "$allowed"
+    comm -23 "$actual" "$allowed" >"$extra"
+    if [[ -s "$extra" ]]; then
+        printf 'Release preparation changed files outside the allowlist:\n' >&2
+        cat "$extra" >&2
         return 1
     fi
+    local untracked
+    untracked="$(git -C "$ROOT" ls-files --others --exclude-standard)"
+    [[ -z "$untracked" ]] || {
+        printf 'Release preparation created untracked files:\n%s\n' "$untracked" >&2
+        return 1
+    }
     [[ -z "$(git -C "$ROOT" diff --cached --name-only)" ]] || {
         printf 'Release preparation unexpectedly staged files.\n' >&2
         return 1
@@ -278,6 +294,14 @@ assert_manifest_diff() {
 prepare_target() {
     PHASE="prepare-target"
     python3 "$ROOT/scripts/release-manifests.py" sync "$TARGET_VERSION" >/dev/null
+    # The prebuilt WebAssembly module in docs/ carries the version, so it must
+    # move with the manifests. build.sh compares the two and would otherwise stop
+    # the release.
+    if [[ "${MILKWASH_SKIP_WASM:-0}" != "1" ]]; then
+        PHASE="prepare-wasm"
+        "$ROOT/wasm.sh" --refresh
+        PHASE="prepare-target"
+    fi
     assert_manifest_diff
     PHASE="target-build"
     "$ROOT/build.sh"
