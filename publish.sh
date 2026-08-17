@@ -269,7 +269,7 @@ assert_manifest_diff() {
     local actual="$TEMP_DIR/actual-manifests.txt"
     local allowed="$TEMP_DIR/allowed-manifests.txt"
     local extra="$TEMP_DIR/extra-manifests.txt"
-    git -C "$ROOT" diff --name-only --untracked-files=no -- >"$actual"
+    git -C "$ROOT" diff --name-only -- >"$actual"
     printf '%s\n' "${MANIFEST_ALLOWLIST[@]}" >"$allowed"
     LC_ALL=C sort -o "$actual" "$actual"
     LC_ALL=C sort -o "$allowed" "$allowed"
