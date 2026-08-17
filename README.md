@@ -12,7 +12,7 @@ watermark is a small change to the choice of words. A reader cannot see it, but 
 detector can find it. milkwash gives you the equipment to test if a rephrase pass
 removes it.
 
-Documentation and a browser demonstration: <https://twardoch.github.io/milkwash/>
+Documentation and a browser demonstration: <https://code.twardoch.com/milkwash/>
 
 milkwash does this work:
 
@@ -147,7 +147,7 @@ answer a TCP connection, milkwashy tries the port minus 10000.
 
 The settings come from the TOML file first, then from the environment (`.env` with
 `python-dotenv`), then from the value in the program. See `.env.example`, and see
-[Model servers](https://twardoch.github.io/milkwash/providers/).
+[Model servers](https://code.twardoch.com/milkwash/providers/).
 
 ## Development
 
@@ -167,7 +167,7 @@ to PyPI, and then `milkwashy` to PyPI.
 Run `./wasm.sh --refresh` after each change to the Rust code, and commit the new
 module in `docs/assets/wasm/`. The documentation site serves that copy.
 
-See [Build and release](https://twardoch.github.io/milkwash/develop/) for the
+See [Build and release](https://code.twardoch.com/milkwash/develop/) for the
 complete description.
 
 ## Files

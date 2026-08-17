@@ -3,7 +3,7 @@ title: milkwash
 description: >-
   Does a rephrase pass with a language model remove a statistical watermark from
   a text? milkwash builds the equipment to find the answer.
-url: https://twardoch.github.io
+url: https://code.twardoch.com
 baseurl: /milkwash
 
 # The theme is loaded from GitHub when the site is built. The repository holds no
