@@ -65,6 +65,12 @@ printf 'milkwashr %s\n' "$VERSION"
 printf 'wasm-pack: %s\n' "$(wasm-pack --version)"
 printf 'node: %s\n' "$(node --version)"
 
+# Remove the previous WebAssembly artifact of this crate. cargo does not always
+# see a version change, and a stale artifact then reports the old version. The
+# dependencies stay in the cache, so this costs only a few seconds.
+cargo clean --manifest-path "$ROOT/Cargo.toml" -p milkwashr-wasm \
+    --target wasm32-unknown-unknown --release 2>/dev/null || true
+
 # The web build goes to the documentation site. The Node build is only for the
 # parity test, because Node cannot load the web build directly.
 (cd "$ROOT/milkwashr-wasm" && wasm-pack build --release --target web \
