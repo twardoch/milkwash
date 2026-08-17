@@ -5,7 +5,7 @@ from .config import Config, Provider, load_config, write_default_config
 from .segment import PROMPTS, ChunkPlan, plan_chunks, segment_sentences, text_seed
 from .pipeline import SweepResult, run_sweep
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 __all__ = [
     "Config",

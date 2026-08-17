@@ -1,7 +1,7 @@
 # this_file: milkwashr-wasm/Cargo.toml
 [package]
 name = "milkwashr-wasm"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 rust-version = "1.75"
 description = "WebAssembly bindings for milkwashr chunk assembly"
@@ -17,7 +17,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # `default-features = false` keeps PyO3 out of the WebAssembly build.
-milkwashr = { path = "../milkwashr", version = "=1.0.0", default-features = false }
+milkwashr = { path = "../milkwashr", version = "=1.0.1", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 wasm-bindgen = "0.2"
