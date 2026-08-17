@@ -8,7 +8,7 @@ name = "milkwashy"
 version = "1.0.0"
 description = "Text-laundering pipeline: segment, rephrase per-chunk across many local LLMs, study watermark survival"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "Apache-2.0" }
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -17,7 +17,6 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",

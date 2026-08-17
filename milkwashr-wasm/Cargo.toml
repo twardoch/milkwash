@@ -1,0 +1,31 @@
+# this_file: milkwashr-wasm/Cargo.toml
+[package]
+name = "milkwashr-wasm"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.75"
+description = "WebAssembly bindings for milkwashr chunk assembly"
+license = "Apache-2.0"
+repository = "https://github.com/twardoch/milkwash"
+# The output of this crate is a WebAssembly module, not a Rust library. A copy
+# on crates.io would give no value, so the crate is not published.
+publish = false
+
+[lib]
+name = "milkwashr_wasm"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# `default-features = false` keeps PyO3 out of the WebAssembly build.
+milkwashr = { path = "../milkwashr", version = "=1.0.0", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# `ahash`, below `text-splitter`, needs `getrandom`. In a browser that crate
+# needs the `wasm_js` feature and the flag in `.cargo/config.toml`.
+[target.wasm32-unknown-unknown.dependencies]
+getrandom = { version = "0.3", features = ["wasm_js"] }

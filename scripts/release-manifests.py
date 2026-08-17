@@ -29,6 +29,16 @@ SITES: tuple[tuple[str, str, str], ...] = (
         'version = "{version}"',
     ),
     (
+        "milkwashr-wasm/Cargo.toml",
+        r'(?m)^version = "([^"]+)"$',
+        'version = "{version}"',
+    ),
+    (
+        "milkwashr-wasm/Cargo.toml",
+        r'(?m)^milkwashr = \{ path = "../milkwashr", version = "=([^"]+)", default-features = false \}$',
+        'milkwashr = {{ path = "../milkwashr", version = "={version}", default-features = false }}',
+    ),
+    (
         "milkwashy/pyproject.toml",
         r'(?m)^version = "([^"]+)"$',
         'version = "{version}"',

@@ -4,30 +4,41 @@ this_file: README.md
 
 # milkwash
 
-Does an LLM paraphrase pass wash a statistical text watermark out of a document?
-`milkwash` builds the apparatus to find out: it takes long source texts, splits
-them into 2–8 sentence chunks, rewrites every chunk through a randomly assigned
-rephrase prompt, and repeats the whole run against every model a local
-OpenAI-compatible server can serve.
+**Does a rephrase pass with a language model remove a statistical watermark from a
+text?**
 
-Two packages:
+Some systems put a watermark into the text that a language model writes. The
+watermark is a small change to the choice of words. A reader cannot see it, but a
+detector can find it. milkwash gives you the equipment to test if a rephrase pass
+removes it.
 
-- **`milkwashr`** — Rust extension (PyO3 + [`text-splitter`](https://crates.io/crates/text-splitter)):
-  deterministic chunk assembly with a character-size guard.
-  [crates.io](https://crates.io/crates/milkwashr) · [PyPI](https://pypi.org/project/milkwashr/)
-- **`milkwashy`** — Python package with a Fire CLI: segmentation, config,
-  providers, inference, and the sweep driver. [PyPI](https://pypi.org/project/milkwashy/)
+Documentation and a browser demonstration: <https://twardoch.github.io/milkwash/>
 
-## Install
+milkwash does this work:
 
-From PyPI:
+1. It cuts each source text into parts of 2 to 8 sentences.
+2. It sends each part to a language model with one of four rephrase prompts.
+3. It puts the answers together again in the same order.
+4. It repeats the run for each model that your local server can load.
+
+You then give the original text and the rephrased text to your detector, and you
+compare the scores. milkwash makes the material for the experiment. It does not
+measure the watermark.
+
+## Two packages
+
+| Package | Language | Install | Function |
+|:--------|:---------|:--------|:---------|
+| [`milkwashr`](https://crates.io/crates/milkwashr) | Rust | `cargo add milkwashr` | It makes the chunk plan. It is also a Python module and a WebAssembly module. |
+| [`milkwashy`](https://pypi.org/project/milkwashy/) | Python | `uv pip install milkwashy` | It finds the sentences, reads the configuration, speaks to the servers, and runs the sweep. |
+
+`milkwashy` installs `milkwashr`, so one command is sufficient:
 
 ```bash
-uv pip install milkwashy       # pulls milkwashr
+uv pip install milkwashy
 ```
 
-From this checkout, into the interpreter uv treats as the system Python (so
-`milkwashy` is on `PATH` everywhere):
+To build from this repository, and to install into your system Python:
 
 ```bash
 ./install.sh                   # or: ./install.sh --python /path/to/python3
@@ -38,134 +49,141 @@ For development:
 ```bash
 uv venv --python 3.12 .venv && source .venv/bin/activate
 uv pip install -e ./milkwashr -e ./milkwashy pytest
-cp .env.example .env           # optional; LM Studio works without a key
+python -m pytest milkwashy/tests -q
 ```
 
 ## Use
 
 ```bash
-milkwashy init_config       # TOML config under platformdirs
-milkwashy gen_indata        # write the four seed texts to 01-indata/
-milkwashy models            # list models (LM Studio via `lms`, others via /v1/models)
-milkwashy plan              # show the chunk + prompt plan, no inference
-milkwashy lms_status        # LM Studio server state + resident models
-milkwashy lms_unload_all    # unload everything, verified
+milkwashy init_config       # write the TOML configuration file
+milkwashy gen_indata        # write the four example texts to 01-indata/
+milkwashy models            # list the models of the server
+milkwashy plan              # show the chunks and the prompts; make no request
+milkwashy lms_status        # show the LM Studio state
+milkwashy lms_unload_all    # unload all models, and confirm it
 milkwashy run --limit 5     # sweep the 5 smallest models
-milkwashy run               # full sweep (hours; resumable)
+milkwashy run               # sweep all models; this takes hours
 ```
 
-`run` accepts `--provider`, `--limit`, `--max_size_mb`, `--manage_lms`, and
-`--force`.
+`run` accepts `--provider`, `--limit`, `--max_size_mb`, `--manage_lms` and
+`--force`. Give `-- --help` to any command to see all of its flags.
 
-To sweep every provider at once — LM Studio, CLIProxy and Chat2API run
-**concurrently**, one process each:
+To use all of the servers at the same time:
 
 ```bash
-./sweep.sh                      # everything, in parallel
-./sweep.sh --limit 5            # 5 smallest models per provider
-PROVIDERS="lmstudio" ./sweep.sh # one provider
-PARALLEL=0 ./sweep.sh           # one at a time
+./sweep.sh                      # all servers, one process each
+./sweep.sh --limit 5            # the 5 smallest models of each server
+PROVIDERS="lmstudio" ./sweep.sh # one server only
+PARALLEL=0 ./sweep.sh           # one server after the other
 ```
 
-They do not contend: outputs are grouped per provider, each writes its own log,
-and only LM Studio touches local memory — the others are remote HTTP. Wall clock
-is the slowest single provider rather than the sum (measured: 233 s parallel vs
-347 s serial on a bounded run). LM Studio starts first because it is reliably the
-longest leg.
+The servers do not compete for the same resource. Only LM Studio uses the memory
+of the computer, because the other servers are remote. The total time is
+therefore the time of the slowest server, and not the sum of all of them. A
+measured example: 233 seconds together, against 347 seconds one after the other.
 
-Extra arguments are passed through to `milkwashy run`. Each provider logs to
-`02-testllm/_logs/<provider>.log` — `tail -f` to watch. An unreachable provider
-is reported and skipped rather than aborting the rest.
+Each server writes its own log to `02-testllm/_logs/<server>.log`. A server that
+does not answer is reported and skipped. It does not stop the other servers.
 
 ## How it works
 
-**The chunk plan is computed once per source text, not once per model.** The
-seed is `blake2b` of the text content, so chunk boundaries and prompt assignment
-are identical for every model in the sweep — without that, no two models see the
-same input and the outputs are not comparable. The plan is written next to each
-output as `<text>.plan.json`.
+**One seed controls the plan.** The seed is the first 8 bytes of the BLAKE2b hash
+of the text. The same text always gives the same chunks and the same prompts. This
+rule is necessary: if two models receive different chunks, a difference in the
+score can come from the chunks and not from the model.
 
-**Segmentation and chunking are split deliberately.** `sentencex` (Python) finds
-sentence boundaries — it has explicit Arabic and Polish support, where
-unicode-segmentation-based splitters are weaker. `milkwashr` (Rust) groups those
-sentences into 2–8 sentence chunks and applies `text-splitter` as a size guard so
-an unusually long chunk cannot overflow a small model's context.
+**Rust holds the plan, and only Rust.** `milkwashr` calculates the seed, makes the
+chunks and selects the prompts. Python, Rust and the browser demonstration all
+call the same code, so they cannot disagree. A test compares the WebAssembly
+build with the Python build on five examples.
 
-**The loop is model-outer, text-inner**, so each model is loaded and unloaded
-once per sweep rather than once per chunk.
+**The sentence search and the chunk assembly are separate.** `sentencex` (Python)
+finds the sentence limits, because it has explicit support for Arabic and Polish.
+`milkwashr` (Rust) then groups the sentences and applies `text-splitter` as a size
+guard. A very long chunk cannot fill the context window of a small model.
 
-**Exactly one model is ever resident.** Every load goes through
-`lmsctl.load_exclusive`, which first proves via `lms ps --json` that nothing is
-loaded — unloading whatever it finds, escalating to `lms unload --all`, and
-aborting the sweep if residency still cannot be proven empty. The per-model body
-is wrapped in `try/finally`, so the model is unloaded and re-verified on success,
-on skip, on error, and on interrupt. The check lives at the load site rather than
-at the bottom of the loop because every `continue`, `break`, and exception path
-would otherwise be a way to load a second model on top of the first. A model
-whose outputs all exist already is not loaded at all.
+**The loop puts the model outside and the text inside.** Each model is therefore
+loaded one time in a sweep, and not one time for each chunk.
 
-**Models are probed, not filtered.** LM Studio's LLM list includes embedding
-models, OCR models, vocoders, and other things that will not chat. Rather than
-guessing from the name, each model gets one 8-token completion; failures are
-recorded as `_skipped.json` and the sweep continues.
+**One model only is in memory.** Each load goes through `lmsctl.load_exclusive`.
+That function first proves with `lms ps --json` that the memory is empty. It
+unloads what it finds, and it escalates to `lms unload --all`. If the memory is
+still not empty, the sweep stops. The body of the loop is inside `try` and
+`finally`, so the model leaves the memory after success, after a skip, after an
+error and after Control-C. The check is at the load, not at the end of the loop:
+every `continue`, every `break` and every error would be a way to load a second
+model.
 
-**Runs are resumable, and skipping existing output is the default.** Any
-`(model, text)` whose output file already exists is left alone — no inference
-call, and if *all* of a model's outputs exist it is never loaded. A model
-recorded as `load_failed` is not retried either — bad tensors and unsupported
-architectures do not fix themselves, and retrying costs a load on every later
-sweep. A `probe_failed` model *is* retried, deliberately: a server on the wrong
-port marks the entire catalogue `probe_failed`, and treating that as permanent
-would make the corrected re-run skip everything and report success having
-produced nothing. `--force` ignores all of it and rewrites. So an interrupted
-multi-hour sweep finishes by re-running the same command.
+**Models are tested, not selected by name.** The model list of LM Studio also
+holds embedding models, models that read images and other models that cannot
+answer a chat request. milkwashy sends one short request of 8 tokens to each
+model. A failure goes into `_skipped.json`, and the sweep continues.
 
-## The four rephrase prompts
+**A sweep can continue.** If an output file is present, milkwashy makes no
+request. If all of the outputs of a model are present, milkwashy does not load
+that model. A model marked `load_failed` is not tried again, because bad tensors
+do not repair themselves. A model marked `probe_failed` **is** tried again: a
+server on the wrong port marks the complete list, and a permanent mark would then
+make a corrected sweep report success with no output. `--force` ignores all of
+these rules.
+
+## The four prompts
 
 1. Shorten the text by 10%, preserve the tone but use some synonyms
 2. Expand the text by 10%, preserve the tone but use some synonyms
 3. Preserve the text but use some synonyms
 4. Rephrase this text to be more ASD-STE100
 
-## Providers
+## Model servers
 
-All inference goes through OpenAI-compatible endpoints. Model *listing* differs
-per provider and is handled per provider: LM Studio is read from the `lms` CLI
-(authoritative, and the only source with `sizeBytes` for the size ordering);
-others use `GET /v1/models`. Every provider's list is ordered by
-`(size_bytes, key)` — size first, key as tiebreak — so `--limit N` selects the
-same N models on every run even where the API reports no size and no stable
-order. For CLIProxy, if the configured port is not reachable, milkwashy retries
-with `port - 10000` after an actual TCP connect test.
+All of the requests use the OpenAI chat interface. The model list is different for
+each server, so milkwashy reads it for each server: LM Studio comes from the `lms`
+command, which is the only source with a size for each model. The other servers
+answer `GET /v1/models`.
 
-Configuration precedence: TOML config → environment (`.env` via python-dotenv) →
-built-in default. See `.env.example`.
+Each list is in the order `(size, name)`. Because of this, `--limit N` always
+selects the same models. For CLIProxy, if the port in the configuration does not
+answer a TCP connection, milkwashy tries the port minus 10000.
+
+The settings come from the TOML file first, then from the environment (`.env` with
+`python-dotenv`), then from the value in the program. See `.env.example`, and see
+[Model servers](https://twardoch.github.io/milkwash/providers/).
 
 ## Development
 
 ```bash
-./build.sh      # fmt, clippy, cargo test, build both wheels, pytest, smoke
+./build.sh      # the gate: format, lint, test, wheels, Python tests, WASM parity
+./wasm.sh       # build the WebAssembly module and compare it with Python
 ./install.sh    # install the built wheels into the system Python
-./publish.sh    # dry run: full gates + predicted version
+./publish.sh    # a test run of a release
 ./publish.sh --real
 ```
 
-`build.sh` fails if it modifies the checkout. `publish.sh` requires a clean,
-pushed `main`; it syncs the version across manifests, tags once via
-`gitnextver`, and only then uploads — `milkwashr` to crates.io and PyPI, then
-`milkwashy` to PyPI.
+`build.sh` fails if it changes any file in the repository. `publish.sh` needs a
+clean `main` that is pushed. It writes one version into all of the manifests, it
+makes one tag with `gitnextver`, and then it uploads: `milkwashr` to crates.io and
+to PyPI, and then `milkwashy` to PyPI.
 
-## Layout
+Run `./wasm.sh --refresh` after each change to the Rust code, and commit the new
+module in `docs/assets/wasm/`. The documentation site serves that copy.
+
+See [Build and release](https://twardoch.github.io/milkwash/develop/) for the
+complete description.
+
+## Files
 
 ```
-01-indata/     seed texts, generated (git-ignored)
-02-testllm/    sweep outputs, generated (git-ignored)
-milkwashr/     Rust extension crate
-milkwashy/     Python package
-scripts/       release version graph + artifact inspection
-sweep.sh       all providers, concurrently
+milkwashr/       the Rust crate and the Python extension module
+milkwashr-wasm/  the WebAssembly bindings
+milkwashy/       the Python package
+docs/            the documentation site and the prebuilt WebAssembly module
+scripts/         version control for the manifests, and artifact inspection
+tests/           the WebAssembly parity test
+sweep.sh         all servers, at the same time
+01-indata/       the source texts; git ignores them
+02-testllm/      the output of the sweep; git ignores it
 ```
 
-## License
+## Licence
 
 Apache-2.0

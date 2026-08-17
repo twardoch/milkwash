@@ -7,20 +7,30 @@ rust-version = "1.75"
 description = "Deterministic sentence-chunk assembly for the milkwash text-laundering pipeline"
 license = "Apache-2.0"
 repository = "https://github.com/twardoch/milkwash"
-homepage = "https://github.com/twardoch/milkwash"
+homepage = "https://twardoch.github.io/milkwash/"
+documentation = "https://docs.rs/milkwashr"
 readme = "README.md"
 keywords = ["chunking", "sentences", "text-splitter", "pyo3", "llm"]
-categories = ["text-processing", "api-bindings"]
+categories = ["text-processing", "api-bindings", "wasm"]
 include = ["/Cargo.toml", "/README.md", "/src/**/*.rs"]
 
 [lib]
 name = "milkwashr"
-# cdylib for the Python extension module, rlib so the crate is usable from Rust.
+# cdylib for the Python extension module, rlib for Rust and WebAssembly users.
 crate-type = ["cdylib", "rlib"]
 
+[features]
+# The Python bindings are on by default, because maturin builds the wheel from
+# this manifest. Rust and WebAssembly users switch them off:
+#   milkwashr = { version = "1", default-features = false }
+default = ["python"]
+python = ["pyo3"]
+
 [dependencies]
-# `extension-module` is deliberately NOT enabled here: it would break plain
-# `cargo build`/`cargo publish` verification. maturin turns it on per build via
-# `[tool.maturin] features = ["pyo3/extension-module"]`.
-pyo3 = { version = "0.29", features = ["abi3-py39"] }
+blake2 = { version = "0.10", default-features = false }
 text-splitter = "0.32"
+
+# `extension-module` is deliberately NOT enabled here: it would break plain
+# `cargo build`, `cargo test` and `cargo publish` verification. maturin turns it
+# on per build through `[tool.maturin] features = ["pyo3/extension-module"]`.
+pyo3 = { version = "0.29", features = ["abi3-py39"], optional = true }

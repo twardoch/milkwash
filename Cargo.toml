@@ -1,7 +1,7 @@
 # this_file: Cargo.toml
 [workspace]
 resolver = "2"
-members = ["milkwashr"]
+members = ["milkwashr", "milkwashr-wasm"]
 
 [profile.release]
 lto = "thin"

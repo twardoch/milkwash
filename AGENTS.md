@@ -4,120 +4,167 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this repository is
 
-An experiment apparatus: does an LLM paraphrase pass wash a statistical text
-watermark out of a document? Two published packages implement it.
+Equipment for one experiment: does a rephrase pass with a language model remove a
+statistical watermark from a text? The repository publishes three build products.
 
-| Package | Language | Registries | Role |
-| --- | --- | --- | --- |
-| `milkwashr` | Rust (PyO3, abi3-py39) | crates.io + PyPI | deterministic chunk assembly, `text-splitter` size guard |
-| `milkwashy` | Python (Fire CLI) | PyPI | segmentation, config, providers, inference, sweep driver |
+| Product | Language | Registry | Function |
+|:--------|:---------|:---------|:---------|
+| `milkwashr` | Rust (crate, and a PyO3 abi3-py39 module) | crates.io and PyPI | the chunk plan |
+| `milkwashr-wasm` | Rust (WebAssembly) | none; `publish = false` | the same plan in a browser |
+| `milkwashy` | Python (Fire command line) | PyPI | sentences, configuration, servers, sweep |
 
-`milkwashy` imports `milkwashr` and pins it to the exact same version.
+`milkwashy` pins `milkwashr` to the same version. The documentation site in
+`docs/` holds a prebuilt copy of the WebAssembly module.
 
 ## Commands
 
 ```bash
-./build.sh                  # the gate: fmt, clippy, cargo test, both wheels, pytest, smoke
-./install.sh                # build wheels and install into uv's system Python
-./install.sh --python PATH  # ... into a specific interpreter
-./publish.sh                # dry run: preflight + all gates + predicted version
-./publish.sh --real         # irreversible: tag, push, upload to crates.io + PyPI
+./build.sh                   # the gate: fmt, clippy, cargo test, wheels, pytest, WASM parity
+MILKWASH_SKIP_WASM=1 ./build.sh   # the same, without the WebAssembly step
+./wasm.sh                    # build the WebAssembly module and compare it with Python
+./wasm.sh --refresh          # the same, and write the module into docs/assets/wasm/
+./install.sh                 # build the wheels and install them into uv's system Python
+./publish.sh                 # a test run of a release
+./publish.sh --real          # a release; it cannot be undone
 ```
 
-Narrower loops while iterating:
+Narrow loops while you work:
 
 ```bash
 cargo test --workspace
+cargo test -p milkwashr --doc
+cargo build -p milkwashr --no-default-features     # the form that Rust and WASM users get
 cargo clippy --all-targets --no-deps -- -D warnings
-uv pip install -e ./milkwashr -e ./milkwashy pytest    # editable dev install
+cargo fmt --all
+
+uv pip install -e ./milkwashr -e ./milkwashy pytest
 python -m pytest milkwashy/tests -q
+python -m pytest milkwashy/tests/test_rust_agreement.py -q
 python -m pytest milkwashy/tests/test_resume.py::test_second_run_skips_existing_outputs -q
+node tests/wasm_parity.mjs <wasm-pack nodejs output dir> <reference.json>
 ```
 
-`build.sh` fails if it leaves the checkout modified — that check exists because
-the release flow depends on the build being a pure function of the tree. If it
-trips, something wrote into a tracked path.
+`build.sh` fails if it changes any tracked file. The release depends on that
+property, because the release runs the build two times and compares the tree.
 
 ## Architecture
 
-**The chunk plan is content-seeded and computed once per source text.** `blake2b`
-of the text gives the seed; `milkwashr` derives chunk spans from it and
-`milkwashy` derives prompt assignment from it. Every model in a sweep therefore
-sees identical chunks with identical prompts — that comparability is the entire
-point of the experiment, so nothing may make chunking depend on the model.
+**One seed controls the plan.** The seed is the first 8 bytes of the BLAKE2b hash
+of the text, read as a big-endian integer. It selects the chunk limits and the
+prompt for each chunk. Every model in a sweep must receive identical chunks.
+Without that, a difference in a watermark score can come from the chunks.
+Therefore: never make the chunk plan depend on the model, the time, or the
+position of a file.
 
-**Segmentation and chunking live on opposite sides of the FFI boundary on
-purpose.** `sentencex` (Python) finds sentence boundaries because it has explicit
-Arabic and Polish support; `milkwashr` (Rust) groups sentences into 2–8 sentence
-chunks and applies `text-splitter` only as a size guard. Do not move sentence
-segmentation into Rust.
+**Rust holds the plan, and Python must not repeat it.**
+`milkwashr/src/chunking.rs` holds the seed calculation, the random number
+generator, the chunk spans, the size guard, the prompt list and the prompt choice.
+`milkwashr/src/python.rs` and `milkwashr-wasm/src/lib.rs` only change types.
+`milkwashy/segment.py` calls `milkwashr.text_seed` and
+`milkwashr.prompt_index`; it does not calculate them. `test_rust_agreement.py`
+holds that rule in place.
 
-**The sweep loop is model-outer, text-inner** (`milkwashy/pipeline.py`), so each
-model loads and unloads once per sweep rather than once per chunk.
+**The crate must build without PyO3.** The `python` feature is on by default,
+because maturin builds the wheel from that manifest. Rust users and the
+WebAssembly build use `default-features = false`. `pyo3/extension-module` must
+stay out of the default features: as a default it breaks `cargo build`,
+`cargo test` and `cargo publish`.
 
-**Exactly one LM Studio model is ever resident.** `lmsctl.load_exclusive` proves
-via `lms ps --json` that nothing is loaded before loading, and the per-model body
-is wrapped in `try/finally`. The check sits at the load site rather than at the
-end of the loop because every `continue`, `break`, and exception path would
-otherwise be a way to stack a second model on the first. Preserve that invariant.
+**The sentence search stays in Python.** `sentencex` finds the sentence limits,
+because it has explicit support for Arabic and Polish. Do not move that work into
+Rust. The browser demonstration uses `Intl.Segmenter` instead, which can find
+different limits in difficult text. The chunk plan for a given sentence list is
+identical in all three targets, and the parity test proves it.
 
-**Resume semantics are asymmetric on purpose.** An existing output file means
-skip; `load_failed` is permanent (bad tensors do not fix themselves);
-`probe_failed` is retried (a server on the wrong port marks the whole catalogue
-`probe_failed`, and treating that as permanent would make a corrected re-run
-report success having produced nothing). `--force` overrides everything.
+**The sweep loop puts the model outside and the text inside**
+(`milkwashy/pipeline.py`). Each model therefore loads one time for each sweep.
 
-**Provider listing differs per provider, inference does not.** All inference goes
-through OpenAI-compatible endpoints. LM Studio's model list comes from the `lms`
-CLI (the only source with `sizeBytes`); the others use `GET /v1/models`. Lists
-are ordered by `(size_bytes, key)` so `--limit N` is stable. CLIProxy falls back
-to `port - 10000` after a real TCP connect test.
+**One LM Studio model only is in memory.** `lmsctl.load_exclusive` proves with
+`lms ps --json` that the memory is empty before it loads. The body of the loop is
+inside `try` and `finally`. The check is at the load, not at the end of the loop,
+because every `continue`, every `break` and every error would be a way to load a
+second model. Keep that arrangement.
 
-Config precedence: TOML under `platformdirs` → `.env` → built-in default.
+**The rules for a continued sweep are not symmetrical, and that is deliberate.**
+An existing output file means skip. `load_failed` is permanent, because bad
+tensors do not repair themselves. `probe_failed` is temporary, because a server on
+the wrong port marks the complete model list; a permanent mark would make a
+corrected sweep report success with no output. `--force` ignores all of it.
+
+**The model list is per server, the requests are not.** All requests use the
+OpenAI chat interface. LM Studio gives its list through the `lms` command, which
+is the only source with a size for each model. The other servers answer
+`GET /v1/models`. Each list is in the order `(size, name)`, so `--limit N` is
+stable. CLIProxy falls back to the port minus 10000 after a real TCP test.
+
+Settings come from the TOML file, then the environment, then the program. A server
+that only exists in the TOML file reads `<NAME>_API_ENDPOINT` and
+`<NAME>_API_KEY`, the same as a built-in server.
+
+**`milkwashy` needs Python 3.11.** `config.py` uses `tomllib`, and it raises an
+error on an older version. `requires-python` must agree with that check.
+
+## The WebAssembly module and the site
+
+`docs/` is a Jekyll site for GitHub Pages. It loads the Just the Docs theme from
+GitHub with `remote_theme`, so the repository holds no copy of the theme.
+
+`docs/assets/wasm/` holds the prebuilt module, and `docs/assets/wasm/VERSION` holds
+its version. `build.sh` compares that version with the manifests and fails if they
+differ. `./wasm.sh --refresh` writes a new module; commit the result. The site has
+no build step of its own for the module.
+
+`docs/assets/js/samples.js` comes from `milkwashy/src/milkwashy/indata.py`. Do not
+edit it by hand. Generate it again if the example texts change.
+
+The WebAssembly build needs `rustup target add wasm32-unknown-unknown`, `wasm-pack`
+and `node`. `.cargo/config.toml` gives `getrandom` the `wasm_js` backend; without
+that flag the build stops, because `ahash` below `text-splitter` needs a source of
+random numbers.
 
 ## Release mechanics
 
-The **git tag is the single source of truth** for the version.
-`scripts/release-manifests.py` is the only thing allowed to move version numbers
-in tracked files; it keeps `milkwashr/Cargo.toml`, `milkwashy/pyproject.toml`
-(both its own version and the `milkwashr==` pin) and `milkwashy/__init__.py`
-identical. `publish.sh` enforces the interesting parts:
+The **git tag is the only source of the version number**.
+`scripts/release-manifests.py` is the only program that may change a version in a
+tracked file. It keeps `milkwashr/Cargo.toml`, `milkwashr-wasm/Cargo.toml` (and its
+pin), `milkwashy/pyproject.toml` (and its pin) and `milkwashy/__init__.py`
+identical. Each version site must match exactly one line, so a manifest must not
+hold a second line that starts with `version = `.
 
-- branch `main`, upstream `origin/main`, remote not ahead, no unresolved conflicts
-- next version mirrors `gitnextver`: highest `v*` tag plus one patch, or `1.0.0`
-  when no tags exist
-- gates run at the *current* version, then manifests sync to the *target*
-  version, then `build.sh` runs again; a diff outside the manifest allowlist aborts
-- `uvx gitnextver@1.0.1` makes the single commit + tag + push. It only tags when
-  the tree is dirty, which the manifest sync guarantees — do not "helpfully"
-  commit the sync yourself, or nothing gets tagged
-- uploads last, in dependency order: crates.io `milkwashr`, PyPI `milkwashr`,
-  PyPI `milkwashy`, each waited on until the registry serves it
+`publish.sh` holds these rules:
 
-`CARGO_REGISTRY_TOKEN` and `UV_PUBLISH_TOKEN` are required for `--real`.
+- branch `main`, upstream `origin/main`, a remote that is not in front, no conflicts
+- the next version follows `gitnextver`: the highest `v` tag plus one patch, or
+  `1.0.0` when the repository has no tag
+- the gates run at the current version; then the manifests move to the target
+  version; then `build.sh` runs again. A change outside the allowlist stops the
+  release.
+- `uvx gitnextver@1.0.1` makes the one commit, the one tag and the one push. It
+  makes a tag only when the repository has a change to commit, and the version
+  change is that change. Do not commit the version change yourself.
+- the uploads are last and in order: crates.io `milkwashr`, PyPI `milkwashr`, PyPI
+  `milkwashy`. The script waits for each registry.
 
-## Conventions
+`CARGO_REGISTRY_TOKEN` and `UV_PUBLISH_TOKEN` are necessary for `--real`.
 
-- Every source file carries a `this_file:` path record near the top — a comment
-  in code, YAML front matter in Markdown. Update it when moving files.
-- `pyo3/extension-module` is **not** a default Cargo feature. maturin enables it
-  per build (`[tool.maturin] features`). Enabling it in `Cargo.toml` breaks
-  `cargo build`, `cargo test` and `cargo publish` verification.
-- `milkwashr` is `abi3-py39`: one wheel serves every CPython ≥ 3.9. Keep it that
-  way; the release publishes from one machine.
-- Unit tests prefer the `test_<unit>_when_<condition>_then_<result>` form
-  (`test_milkwashy.py`); fixture-driven behaviour tests use plainer names
-  (`test_resume.py`). Either way tests must not need a network or a running LM
-  Studio — the suite monkeypatches `subprocess` and `httpx`.
+A test of the target version before a real release is cheap and it prevents a
+pushed tag with a broken artifact: clone the repository into a temporary
+directory, tag it, run `sync`, commit, and then run `build.sh`.
 
-## `_priv/` is private and stays private
+## Style rules for this repository
 
-`_priv/` holds the original prototype, reference material and experiment data. It
-is git-ignored and nothing in it is published. Specifically **do not** port to
-the public tree: `_priv/**/ref/` (third-party reference material, including
-`synthid-text`, under its own licenses), `_priv/**/issues/` (contains API key
-fragments), `_priv/**/01-indata` and `_priv/**/02-testllm` (experiment inputs and
-outputs — `milkwashy gen_indata` regenerates the seed texts, which are authored
-inline in `milkwashy/indata.py`), and `WORK.md`.
+- Prose in Markdown files uses ASD-STE100 Simplified Technical English: short
+  sentences, the active voice, one instruction in one sentence, and no idiom.
+- Every source file holds a `this_file:` line near the top. Update it when you
+  move a file.
+- Test names use `test_<unit>_when_<condition>_then_<result>`, or a plain
+  description for a test with fixtures.
+- Tests must not need a network, a model server, or model weights.
 
-`.env` is ignored; `.env.example` carries `REPLACE_ME` placeholders only.
+## `_priv/` is private
+
+`_priv/` holds the first prototype, reference material and experiment data. Git
+ignores it. Do not copy these into the public tree: `_priv/**/ref/` (other
+people's licences), `_priv/**/issues/` (fragments of API keys),
+`_priv/**/01-indata`, `_priv/**/02-testllm`, and `WORK.md`. The example texts are
+in `milkwashy/indata.py`, and `milkwashy gen_indata` writes them again.

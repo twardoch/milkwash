@@ -1,0 +1,138 @@
+/* this_file: docs/assets/css/demo.css
+ *
+ * Styles for the browser demonstration. The colours come from the theme, so the
+ * demonstration follows the light and the dark scheme of the page.
+ */
+
+.milkwash-demo {
+  margin: 1.5rem 0;
+}
+
+.milkwash-demo .demo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.milkwash-demo label {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.milkwash-demo textarea,
+.milkwash-demo select,
+.milkwash-demo input {
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: inherit;
+  background-color: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+}
+
+.milkwash-demo textarea {
+  width: 100%;
+  min-height: 8rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.milkwash-demo input[type="number"] {
+  width: 6rem;
+}
+
+.milkwash-demo button {
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  background-color: transparent;
+  color: inherit;
+}
+
+.milkwash-demo button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.milkwash-demo #status {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.milkwash-demo #status[data-kind="error"] {
+  color: #d64545;
+  opacity: 1;
+}
+
+.demo-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 1rem;
+  margin: 1rem 0;
+  font-size: 0.8rem;
+}
+
+.demo-summary dt {
+  font-weight: 600;
+}
+
+.demo-summary dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+
+.demo-chunks {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.demo-chunks .chunk {
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 0.75rem 0.9rem;
+  opacity: 0.95;
+}
+
+.demo-chunks .chunk header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  margin-bottom: 0.4rem;
+}
+
+.demo-chunks .chunk-index {
+  font-weight: 700;
+}
+
+.demo-chunks .chunk-facts {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.demo-chunks .chunk-prompt {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-style: italic;
+  opacity: 0.9;
+}
+
+.demo-chunks .chunk-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.demo-chunks .chunk-json {
+  max-height: 20rem;
+  overflow: auto;
+}

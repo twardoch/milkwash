@@ -60,7 +60,10 @@ def config_path() -> Path:
 
 def _provider_from_env(name: str, raw: dict | None) -> Provider:
     raw = raw or {}
-    endpoint_env, key_env, default_ep = PROVIDER_ENV.get(name, (None, None, ""))
+    # A provider that only exists in the TOML file follows the same environment
+    # naming as the built-in ones: MYSERVER_API_ENDPOINT and MYSERVER_API_KEY.
+    fallback = (f"{name.upper()}_API_ENDPOINT", f"{name.upper()}_API_KEY", "")
+    endpoint_env, key_env, default_ep = PROVIDER_ENV.get(name, fallback)
     endpoint = raw.get("endpoint") or (os.getenv(endpoint_env) if endpoint_env else None) or default_ep
     api_key = raw.get("api_key") or (os.getenv(key_env) if key_env else None) or "not-needed"
     lister = raw.get("lister", "lms" if name == "lmstudio" else "openai")
@@ -85,15 +88,10 @@ def load_config(path: Path | None = None) -> Config:
     raw_providers = raw.get("providers", {})
     for name in PROVIDER_ENV:
         cfg.providers[name] = _provider_from_env(name, raw_providers.get(name))
-    # allow extra providers defined only in TOML
+    # Providers that only exist in the TOML file get the same treatment.
     for name, praw in raw_providers.items():
         if name not in cfg.providers:
-            cfg.providers[name] = Provider(
-                name=name,
-                endpoint=praw.get("endpoint", ""),
-                api_key=praw.get("api_key", "not-needed"),
-                lister=praw.get("lister", "openai"),
-            )
+            cfg.providers[name] = _provider_from_env(name, praw)
     return cfg
 
 

@@ -53,8 +53,12 @@ verify_layout() {
         milkwashr/Cargo.toml \
         milkwashr/pyproject.toml \
         milkwashr/src/lib.rs \
+        milkwashr-wasm/Cargo.toml \
+        milkwashr-wasm/src/lib.rs \
         milkwashy/pyproject.toml \
         milkwashy/tests \
+        tests/wasm_parity.mjs \
+        wasm.sh \
         scripts/release-manifests.py \
         scripts/check-python-artifacts.py; do
         [[ -e "$ROOT/$required" ]] || {
@@ -123,6 +127,23 @@ print(f"Python smoke passed: milkwashy {milkwashy.__version__}")
 PY
 }
 
+# Builds the WebAssembly module, compares it with the Python module, and checks
+# that docs/ holds the module for this version. `./wasm.sh --refresh` writes it.
+wasm_gate() {
+    if [[ "${MILKWASH_SKIP_WASM:-0}" == "1" ]]; then
+        printf 'WASM gate skipped, because MILKWASH_SKIP_WASM=1.\n'
+        return 0
+    fi
+    for tool in wasm-pack node rustup; do
+        command -v "$tool" >/dev/null 2>&1 || {
+            printf 'The WASM gate needs %s. Install it, or set MILKWASH_SKIP_WASM=1.\n' \
+                "$tool" >&2
+            return 1
+        }
+    done
+    "$ROOT/wasm.sh"
+}
+
 run_build() {
     local tool
     for tool in git cargo rustc uv uvx python3; do
@@ -145,7 +166,12 @@ run_build() {
     cargo clippy --manifest-path "$ROOT/Cargo.toml" --all-targets --no-deps -- -D warnings
     cargo build --manifest-path "$ROOT/Cargo.toml" --workspace
     cargo test --manifest-path "$ROOT/Cargo.toml" --workspace
+    cargo test --manifest-path "$ROOT/Cargo.toml" -p milkwashr --doc
+    # The crate must also build without PyO3. Rust users and the WebAssembly
+    # build use it in that form.
+    cargo build --manifest-path "$ROOT/Cargo.toml" -p milkwashr --no-default-features
     python_gate "$version"
+    wasm_gate
 
     record_tree "$TEMP_DIR/after"
     verify_tree_unchanged "$TEMP_DIR/before" "$TEMP_DIR/after"
