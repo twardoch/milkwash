@@ -273,7 +273,9 @@ assert_manifest_diff() {
     printf '%s\n' "${MANIFEST_ALLOWLIST[@]}" >"$allowed"
     LC_ALL=C sort -o "$actual" "$actual"
     LC_ALL=C sort -o "$allowed" "$allowed"
-    comm -23 "$actual" "$allowed" >"$extra"
+    # comm must use the same collation as sort above. Without LC_ALL it uses the
+    # locale of the shell, and it then gives a wrong answer without a warning.
+    LC_ALL=C comm -23 "$actual" "$allowed" >"$extra"
     if [[ -s "$extra" ]]; then
         printf 'Release preparation changed files outside the allowlist:\n' >&2
         cat "$extra" >&2
@@ -343,7 +345,7 @@ verify_release_refs() {
         printf 'Expected local release tag is missing: %s\n' "$TARGET_TAG" >&2
         return 1
     }
-    new_tags="$(comm -13 "$TEMP_DIR/tags-before.txt" <(git -C "$ROOT" tag --list 'v*' | LC_ALL=C sort))"
+    new_tags="$(LC_ALL=C comm -13 "$TEMP_DIR/tags-before.txt" <(git -C "$ROOT" tag --list 'v*' | LC_ALL=C sort))"
     [[ "$new_tags" == "$TARGET_TAG" ]] || {
         printf 'Release command created unexpected tags: %s\n' "$new_tags" >&2
         return 1
