@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "milkwashy"
-version = "0.1.0"
+version = "1.0.0"
 description = "Text-laundering pipeline: segment, rephrase per-chunk across many local LLMs, study watermark survival"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,7 +37,7 @@ dependencies = [
   "pathvalidate>=3.2",
   "python-slugify>=8.0",
   "tomli-w>=1.0",
-  "milkwashr==0.1.0",
+  "milkwashr==1.0.0",
 ]
 
 [[project.authors]]

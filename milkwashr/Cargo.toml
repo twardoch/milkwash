@@ -1,7 +1,7 @@
 # this_file: milkwashr/Cargo.toml
 [package]
 name = "milkwashr"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Deterministic sentence-chunk assembly for the milkwash text-laundering pipeline"
