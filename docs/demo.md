@@ -40,14 +40,14 @@ Your text stays in your browser. The page sends no text to a server.
     <legend class="fieldset-legend">Source text</legend>
 
     <div class="demo-row">
-      <label class="label" for="sample">Example text</label>
+      <label class="demo-label" for="sample">Example text</label>
       <select id="sample" class="select select-bordered select-sm">
         <option value="en">English — rivers and machines</option>
         <option value="pl">Polish — rzeki i maszyny</option>
         <option value="de">German — Flüsse und Maschinen</option>
         <option value="ar">Arabic — الأنهار والآلات</option>
       </select>
-      <label class="label" for="language">Language for the sentence search</label>
+      <label class="demo-label" for="language">Language for the sentence search</label>
       <select id="language" class="select select-bordered select-sm">
         <option value="en">en</option>
         <option value="pl">pl</option>
@@ -59,11 +59,11 @@ Your text stays in your browser. The page sends no text to a server.
     <textarea id="text" class="textarea textarea-bordered w-full" rows="10" spellcheck="false"></textarea>
 
     <div class="demo-row">
-      <label class="label" for="minSent">Minimum sentences</label>
+      <label class="demo-label" for="minSent">Minimum sentences</label>
       <input id="minSent" type="number" class="input input-bordered input-sm demo-number" min="1" max="20" value="2">
-      <label class="label" for="maxSent">Maximum sentences</label>
+      <label class="demo-label" for="maxSent">Maximum sentences</label>
       <input id="maxSent" type="number" class="input input-bordered input-sm demo-number" min="1" max="40" value="8">
-      <label class="label" for="maxChars">Character guard</label>
+      <label class="demo-label" for="maxChars">Character guard</label>
       <input id="maxChars" type="number" class="input input-bordered input-sm demo-number" min="50" max="20000" step="50" value="6000">
     </div>
 
