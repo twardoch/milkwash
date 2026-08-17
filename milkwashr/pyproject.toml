@@ -1,0 +1,45 @@
+# this_file: milkwashr/pyproject.toml
+[build-system]
+requires = ["maturin>=1.9,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "milkwashr"
+description = "Deterministic sentence-chunk assembly (text-splitter) for the milkwash pipeline"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Rust",
+  "Topic :: Text Processing",
+]
+keywords = ["chunking", "sentences", "text-splitter", "llm", "rust"]
+dynamic = ["version"]
+
+[[project.authors]]
+name = "Adam Twardoch"
+email = "adam+github@twardoch.com"
+
+[project.urls]
+Homepage = "https://github.com/twardoch/milkwash"
+Repository = "https://github.com/twardoch/milkwash.git"
+Issues = "https://github.com/twardoch/milkwash/issues"
+Changelog = "https://github.com/twardoch/milkwash/blob/main/CHANGELOG.md"
+
+[tool.maturin]
+module-name = "milkwashr"
+features = ["pyo3/extension-module"]
+
+# Present so `uvx --with hatch-vcs hatchling version` can report the
+# tag-derived version during release verification; maturin takes the real
+# version from Cargo.toml.
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+root = ".."

@@ -1,0 +1,8 @@
+# this_file: Cargo.toml
+[workspace]
+resolver = "2"
+members = ["milkwashr"]
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

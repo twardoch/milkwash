@@ -1,0 +1,26 @@
+# this_file: milkwashr/Cargo.toml
+[package]
+name = "milkwashr"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Deterministic sentence-chunk assembly for the milkwash text-laundering pipeline"
+license = "Apache-2.0"
+repository = "https://github.com/twardoch/milkwash"
+homepage = "https://github.com/twardoch/milkwash"
+readme = "README.md"
+keywords = ["chunking", "sentences", "text-splitter", "pyo3", "llm"]
+categories = ["text-processing", "api-bindings"]
+include = ["/Cargo.toml", "/README.md", "/src/**/*.rs"]
+
+[lib]
+name = "milkwashr"
+# cdylib for the Python extension module, rlib so the crate is usable from Rust.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# `extension-module` is deliberately NOT enabled here: it would break plain
+# `cargo build`/`cargo publish` verification. maturin turns it on per build via
+# `[tool.maturin] features = ["pyo3/extension-module"]`.
+pyo3 = { version = "0.29", features = ["abi3-py39"] }
+text-splitter = "0.32"
