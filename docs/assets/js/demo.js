@@ -76,11 +76,14 @@ function render(result) {
   ui.chunks.replaceChildren(
     ...result.chunks.map((chunk) => {
       const card = document.createElement("article");
-      card.className = "chunk";
+      card.className = "chunk card bg-base-200 card-border border-base-300 card-sm";
+      const body = document.createElement("div");
+      body.className = "card-body";
 
-      const head = document.createElement("header");
+      const head = document.createElement("div");
+      head.className = "demo-row";
       const position = document.createElement("span");
-      position.className = "chunk-index";
+      position.className = "badge badge-primary badge-sm";
       position.textContent = `Chunk ${chunk.index + 1}`;
       const facts = document.createElement("span");
       facts.className = "chunk-facts";
@@ -94,11 +97,12 @@ function render(result) {
       prompt.className = "chunk-prompt";
       prompt.textContent = `Prompt ${chunk.prompt_index + 1}: ${chunk.prompt}`;
 
-      const body = document.createElement("p");
-      body.className = "chunk-text";
-      body.textContent = chunk.text;
+      const text = document.createElement("p");
+      text.className = "chunk-text";
+      text.textContent = chunk.text;
 
-      card.append(head, prompt, body);
+      body.append(head, prompt, text);
+      card.append(body);
       return card;
     }),
   );
@@ -143,7 +147,7 @@ async function copyPlan() {
     // Some browsers refuse the clipboard without a permission. Show the JSON
     // instead, because the user can then copy it manually.
     const box = document.createElement("pre");
-    box.className = "chunk-json";
+    box.className = "chunk-json mockup-code";
     box.textContent = json;
     ui.chunks.prepend(box);
     say("The browser refused the clipboard. The JSON is at the top.", "error");
